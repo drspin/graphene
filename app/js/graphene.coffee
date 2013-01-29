@@ -56,8 +56,6 @@ class Graphene
 @Graphene = Graphene
 
 
-
-
 class Graphene.GraphiteModel extends Backbone.Model
   defaults:
     source:''
@@ -335,6 +333,8 @@ class Graphene.TimeSeriesView extends Backbone.View
     @firstrun = true
     @parent = @options.parent || '#parent'
     @null_value = 0
+    @min_threshold = @options.min_threshold || 0
+    @max_threshold = @options.max_threshold || null
 
     @vis = d3.select(@parent).append("svg")
             .attr("class", "tsview")
@@ -504,6 +504,10 @@ class Graphene.TimeSeriesView extends Backbone.View
         .ease("linear")
         .duration(@animate_ms)
 
+    #
+    # Threshold handling
+    #
+    d3.select(@parent).classed("alert", dmin.ymax > @max_threshold) if @max_threshold
 
 # Barcharts
 class Graphene.BarChartView extends Backbone.View
