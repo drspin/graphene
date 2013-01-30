@@ -327,7 +327,7 @@ class Graphene.TimeSeriesView extends Backbone.View
     @display_verticals = @options.display_verticals || false
     @width = @options.width || 400
     @height = @options.height || 100
-    @padding = @options.padding || [@line_height*2, 32, @line_height*(3+@num_labels), 32] #trbl
+    @padding = @options.padding || [@line_height*2 + 5, 32, @line_height*(3+@num_labels), 32] #trbl
     @title = @options.title
     @label_formatter = @options.label_formatter || (label) -> label
     @firstrun = true
@@ -425,7 +425,17 @@ class Graphene.TimeSeriesView extends Backbone.View
       # To see an idiomatic d3 handling, take a look at the legend fixture.
       #
       vis.selectAll("path.line").data(points).enter().append('path').attr("d", line).attr('class',  (d,i) -> 'line '+"h-col-#{i+1}")
-      vis.selectAll("path.area").data(points).enter().append('path').attr("d", area).attr('class',  (d,i) -> 'area '+"h-col-#{i+1}")
+      vis.selectAll("path.area").data(points).enter().append('path').attr("d", area).attr('class',  (d,i) =>
+        trigger = false
+        if @max_threshold isnt null
+          if _.last(d)[0] > @max_threshold
+            trigger = true
+        if trigger is true
+          return 'area h-col-alert '+"h-col-#{i+1}"
+        else
+          return 'area '+"h-col-#{i+1}"
+      )
+
 
       #
       # Title + Legend
@@ -464,7 +474,7 @@ class Graphene.TimeSeriesView extends Backbone.View
     litem_enters.append('svg:rect')
       .attr('width', 10)
       .attr('height', 10)
-      .attr('class', (d,i) -> 'ts-color '+"h-col-#{i+1}")
+      .attr('class', (d,i) -> return 'ts-color '+"h-col-#{i+1}")
     litem_enters_text = litem_enters.append('svg:text')
       .attr('dx', 20)
       .attr('dy', 10)
@@ -504,10 +514,19 @@ class Graphene.TimeSeriesView extends Backbone.View
         .ease("linear")
         .duration(@animate_ms)
 
+
     #
-    # Threshold handling
+    # Check thresholds
     #
-    d3.select(@parent).classed("alert", dmin.ymax > @max_threshold) if @max_threshold
+    if @max_threshold isnt null
+      trigger = false
+      _.each data, (d) =>
+        if trigger is false and _.last(d.points)[0] > @max_threshold
+          trigger = true
+      if trigger is true
+        d3.select(@parent).classed('alert', trigger)
+      else
+        d3.select(@parent).classed('alert', false)
 
 # Barcharts
 class Graphene.BarChartView extends Backbone.View
