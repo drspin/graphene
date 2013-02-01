@@ -202,6 +202,7 @@ class Graphene.TimeSeries extends Graphene.GraphiteModel
 
 
 
+
 class Graphene.GaugeGadgetView extends Backbone.View
   className: 'gauge-gadget-view'
   tagName: 'div'
@@ -333,9 +334,10 @@ class Graphene.TimeSeriesView extends Backbone.View
     @firstrun = true
     @parent = @options.parent || '#parent'
     @null_value = 0
-    @min_threshold = @options.min_threshold || 0
+    @min_threshold = @options.min_threshold || null
     @max_threshold = @options.max_threshold || null
-
+    @sustained_threshold = @options.sustained_threshold || null #[threshold, sustained number of times]
+    
     @vis = d3.select(@parent).append("svg")
             .attr("class", "tsview")
             .attr("width",  @width  + (@padding[1]+@padding[3]))
@@ -346,9 +348,18 @@ class Graphene.TimeSeriesView extends Backbone.View
     @value_format  = @options.value_format || ".3s"
     @value_format = d3.format(@value_format)
 
+    # Push threshold values into the model
+    @model.set thresholds:
+      min_threshold: @options.min_threshold ? null
+      max_threshold: @options.max_threshold ? null
+      sustained_threshold: @options.sustained_threshold ? null
+
+
     @model.bind('change', @render)
     console.log("TS view: #{@width}x#{@height} padding:#{@padding} animate: #{@animate_ms} labels: #{@num_labels}")
 
+  is_alert: (data) ->
+    console.log 'is_alert', data
 
   render: ()=>
     console.log("rendering.")
@@ -362,6 +373,7 @@ class Graphene.TimeSeriesView extends Backbone.View
     dmax = _.max data, (d)-> d.ymax
     dmax.ymax_graph = @options.ymax || dmax.ymax
     dmin = _.min data, (d)-> d.ymin
+    dmin.ymin_graph = @options.ymin ? dmin.ymin
 
     #
     # build dynamic x & y metrics.
@@ -371,7 +383,7 @@ class Graphene.TimeSeriesView extends Backbone.View
     xmax = _.max xpoints, (x)->x.valueOf()
 
     x = d3.time.scale().domain([xmin, xmax]).range([0, @width])
-    y = d3.scale.linear().domain([dmin.ymin, dmax.ymax_graph]).range([@height, 0]).nice()
+    y = d3.scale.linear().domain([dmin.ymin_graph, dmax.ymax_graph]).range([@height, 0]).nice()
 
     #
     # build axis
@@ -424,6 +436,7 @@ class Graphene.TimeSeriesView extends Backbone.View
       # so enter() exit() semantics are invalid. We will append here, and later just replace (update).
       # To see an idiomatic d3 handling, take a look at the legend fixture.
       #
+      
       vis.selectAll("path.line").data(points).enter().append('path').attr("d", line).attr('class',  (d,i) -> 'line '+"h-col-#{i+1}")
       vis.selectAll("path.area").data(points).enter().append('path').attr("d", area).attr('class',  (d,i) =>
         trigger = false
@@ -515,6 +528,7 @@ class Graphene.TimeSeriesView extends Backbone.View
         .duration(@animate_ms)
 
 
+
     #
     # Check thresholds
     #
@@ -527,6 +541,27 @@ class Graphene.TimeSeriesView extends Backbone.View
         d3.select(@parent).classed('alert', trigger)
       else
         d3.select(@parent).classed('alert', false)
+
+    if @sustained_threshold?
+      sustained_count = @model.get("sustained_count")
+      if !sustained_count?
+        sustained_count = 0
+
+      if _.last(d.points)[0] > @sustained_threshold.max
+        sustained_count += 1
+      else
+        sustained_count = 0
+
+      trigger = false
+      if sustained_count > @sustained_threshold.count and trigger is false
+        trigger = true
+
+      d3.select(@parent).classed('alert', trigger)
+      @model.set( {sustained_count: sustained_count} )
+
+
+
+      
 
 # Barcharts
 class Graphene.BarChartView extends Backbone.View
