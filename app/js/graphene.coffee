@@ -342,9 +342,10 @@ class Graphene.TimeSeriesView extends Backbone.View
     @max_threshold = @options.max_threshold || null
     @sustained_threshold = @options.sustained_threshold || null #[threshold, sustained number of times]
     @multiplier = @options.multiplier || 1
+    @viewClassName = @options.classname || "tsview"
     
     @vis = d3.select(@parent).append("svg")
-            .attr("class", "tsview")
+            .attr("class", @viewClassName)
             .attr("width",  @width  + (@padding[1]+@padding[3]))
             .attr("height", @height + (@padding[0]+@padding[2]))
             .append("g")
