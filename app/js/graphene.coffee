@@ -17,6 +17,9 @@ class Graphene
       if json[k].refresh_interval
         model_opts.refresh_interval = json[k].refresh_interval
         delete json[k].refresh_interval
+      if json[k].multiplier
+        model_opts.multiplier = json[k].multiplier
+        delete json[k].multiplier
       ts = new klass(model_opts)
 
       _.each json[k], (opts, view)=>
@@ -181,13 +184,14 @@ class Graphene.BarChart extends Graphene.GraphiteModel
     @set(data:data)
 
 class Graphene.TimeSeries extends Graphene.GraphiteModel
-  process_data: (js)=>
+  process_data: (js) =>
+    multiplier = @get('multiplier') || 1
     data = _.map js, (dp)->
-      min = d3.min(dp.datapoints, (d) -> d[0])
+      min = d3.min(dp.datapoints, (d) -> d[0] * multiplier)
       return null unless min != undefined
-      max = d3.max(dp.datapoints, (d) -> d[0])
+      max = d3.max(dp.datapoints, (d) -> d[0] * multiplier)
       return null unless max != undefined
-      _.each dp.datapoints, (d) -> d[1] = new Date(d[1]*1000)
+      _.each dp.datapoints, (d) -> d[0] = d[0] * multiplier; d[1] = new Date(d[1]*1000)
       return {
         points: _.reject(dp.datapoints, (d)-> d[0] == null),
         ymin: min,
@@ -337,6 +341,7 @@ class Graphene.TimeSeriesView extends Backbone.View
     @min_threshold = @options.min_threshold || null
     @max_threshold = @options.max_threshold || null
     @sustained_threshold = @options.sustained_threshold || null #[threshold, sustained number of times]
+    @multiplier = @options.multiplier || 1
     
     @vis = d3.select(@parent).append("svg")
             .attr("class", "tsview")
