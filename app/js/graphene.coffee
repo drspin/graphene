@@ -191,20 +191,18 @@ class Graphene.TimeSeries extends Graphene.GraphiteModel
       return null unless min != undefined
       max = d3.max(dp.datapoints, (d) -> d[0] * multiplier)
       return null unless max != undefined
+      last = _.last(dp.datapoints)[0] || 0
+      return null unless last != undefined
       _.each dp.datapoints, (d) -> d[0] = d[0] * multiplier; d[1] = new Date(d[1]*1000)
       return {
         points: _.reject(dp.datapoints, (d)-> d[0] == null),
         ymin: min,
         ymax: max,
+        last: last,
         label: dp.target
       }
     data = _.reject data, (d)-> d == null
     @set(data:data)
-
-
-
-
-
 
 
 class Graphene.GaugeGadgetView extends Backbone.View
@@ -325,24 +323,26 @@ class Graphene.TimeSeriesView extends Backbone.View
   tagName: 'div'
 
   initialize: ()->
-    @line_height = @options.line_height || 16
-    @animate_ms = @options.animate_ms || 500
-    @num_labels = @options.num_labels || 3
-    @sort_labels = @options.labels_sort || 'desc'
-    @display_verticals = @options.display_verticals || false
-    @width = @options.width || 400
-    @height = @options.height || 100
-    @padding = @options.padding || [@line_height*2 + 5, 32, @line_height*(3+@num_labels), 32] #trbl
-    @title = @options.title
-    @label_formatter = @options.label_formatter || (label) -> label
-    @firstrun = true
-    @parent = @options.parent || '#parent'
-    @null_value = 0
-    @min_threshold = @options.min_threshold || null
-    @max_threshold = @options.max_threshold || null
-    @sustained_threshold = @options.sustained_threshold || null #[threshold, sustained number of times]
-    @multiplier = @options.multiplier || 1
-    @viewClassName = @options.classname || "tsview"
+    @line_height          = @options.line_height || 16
+    @animate_ms           = @options.animate_ms || 500
+    @num_labels           = @options.num_labels || 3
+    @sort_labels          = @options.labels_sort || 'desc'
+    @display_verticals    = @options.display_verticals || false
+    @width                = @options.width || 400
+    @height               = @options.height || 100
+    @padding              = @options.padding || [@line_height*2 + 5, 32, @line_height*(3+@num_labels), 32] #trbl
+    @title                = @options.title
+    @label_formatter      = @options.label_formatter || (label) -> label
+    @firstrun             = true
+    @parent               = @options.parent || '#parent'
+    @null_value           = 0
+    @min_threshold        = @options.min_threshold || null
+    @max_threshold        = @options.max_threshold || null
+    @sustained_threshold  = @options.sustained_threshold || null #[threshold, sustained number of times]
+    @multiplier           = @options.multiplier || 1
+    @viewClassName        = @options.classname || "tsview"
+    @show_last            = @options.show_last || false
+    @area_mode            = @options.area_mode || "normal"
     
     @vis = d3.select(@parent).append("svg")
             .attr("class", @viewClassName)
@@ -374,10 +374,25 @@ class Graphene.TimeSeriesView extends Backbone.View
     data = if data && data.length > 0 then data else [{ ymax: @null_value, ymin: @null_value, points: [[@null_value, 0],[@null_value, 0]] }]
 
     #
+    # get raw data points (throw away all of the other blabber
+    #
+    if @area_mode is 'stacked'
+      acc_p = []
+      acc_max = 0
+      points = _.map data, (d) ->
+        _.each d.points, (p, i) ->
+          acc_p_val = acc_p[i] ? 0
+          p[0] = p[0] + acc_p_val 
+          acc_p[i] = p[0]
+          acc_max = p[0] if acc_max < p[0]
+        d.points
+
+
+    #
     # find overall min/max of sets
     #
     dmax = _.max data, (d)-> d.ymax
-    dmax.ymax_graph = @options.ymax || dmax.ymax
+    dmax.ymax_graph = if acc_max? then acc_max else (@options.ymax || dmax.ymax)
     dmin = _.min data, (d)-> d.ymin
     dmin.ymin_graph = @options.ymin ? dmin.ymin
 
@@ -400,6 +415,7 @@ class Graphene.TimeSeriesView extends Backbone.View
 
     vis = @vis
 
+
     #
     # build dynamic line & area, note that we're using dynamic x & y.
     #
@@ -410,15 +426,11 @@ class Graphene.TimeSeriesView extends Backbone.View
     # get first X labels
     #
     order = if(@sort_labels == 'desc') then -1 else 1
-
     data = _.sortBy(data, (d)-> order*d.ymax)
 
-    #
-    # get raw data points (throw away all of the other blabber
-    #
-    points = _.map data, (d)-> d.points
-
-
+    if @area_mode isnt 'stacked'
+      points = _.map data, (d)-> d.points
+    
     if @firstrun
       @firstrun = false
 
@@ -442,8 +454,8 @@ class Graphene.TimeSeriesView extends Backbone.View
       # so enter() exit() semantics are invalid. We will append here, and later just replace (update).
       # To see an idiomatic d3 handling, take a look at the legend fixture.
       #
-      
-      vis.selectAll("path.line").data(points).enter().append('path').attr("d", line).attr('class',  (d,i) -> 'line '+"h-col-#{i+1}")
+
+      vis.selectAll("path.line").data(points).enter().append('path').attr("d", line).attr('class',  (d,i) -> console.log 'class',"h-col-#{i+1}" ;'line '+"h-col-#{i+1}")
       vis.selectAll("path.area").data(points).enter().append('path').attr("d", area).attr('class',  (d,i) =>
         trigger = false
         if @max_threshold isnt null
@@ -503,12 +515,19 @@ class Graphene.TimeSeriesView extends Backbone.View
     litem_enters_text.append('svg:tspan')
         .attr('class', 'min-tag')
         .attr('dx', 10)
-        .text((d) => @value_format(d.ymin)+"min")
+        .text((d) => "min: " + @value_format(d.ymin))
 
     litem_enters_text.append('svg:tspan')
         .attr('class', 'max-tag')
         .attr('dx', 2)
-        .text((d) => @value_format(d.ymax)+"max")
+        .text((d) => "max: " + @value_format(d.ymax))
+
+    if @show_last
+      litem_enters_text.append('svg:tspan')
+          .attr('class', 'last-tag')
+          .attr('dx', 2)
+          .text((d) => "last: " + @value_format(d.last))
+
 
 
 
