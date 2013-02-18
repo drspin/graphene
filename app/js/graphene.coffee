@@ -248,19 +248,14 @@ class Graphene.GaugeGadgetView extends Backbone.View
     switch @type
       when "min"     then d.ymin
       when "max"     then d.ymax
-      when "current" then d.points[d.points.length][0]
+      when "current" then d.last
       else d.points[0][0]
 
   render: ()=>
     console.log("rendering.")
     data = @model.get('data')
     datum = if data && data.length > 0 then data[0] else { ymax: @null_value, ymin: @null_value, points: [[@null_value, 0]] }
-
     @gauge.redraw(@by_type(datum), @value_format)
-
-
-
-
 
 
 class Graphene.GaugeLabelView extends Backbone.View
@@ -290,7 +285,7 @@ class Graphene.GaugeLabelView extends Backbone.View
     switch @type
       when "min"     then d.ymin
       when "max"     then d.ymax
-      when "current" then d.points[d.points.length][0]
+      when "current" then d.last
       else d.points[0][0]
 
   render: ()=>
