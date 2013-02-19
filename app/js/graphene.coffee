@@ -191,7 +191,7 @@ class Graphene.TimeSeries extends Graphene.GraphiteModel
       return null unless min != undefined
       max = d3.max(dp.datapoints, (d) -> d[0] * multiplier)
       return null unless max != undefined
-      last = _.last(dp.datapoints)[0] || 0
+      last = _.last(dp.datapoints)[0] ? 0
       return null unless last != undefined
       _.each dp.datapoints, (d) -> d[0] = d[0] * multiplier; d[1] = new Date(d[1]*1000)
       return {
